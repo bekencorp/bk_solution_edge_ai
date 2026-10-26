@@ -1,0 +1,88 @@
+#pragma once
+
+#include <os/os.h>
+
+#include <stdbool.h>
+#include <stdint.h>
+
+typedef enum
+{
+    BOARDING_OP_UNKNOWN = 0,
+    BOARDING_OP_STATION_START = 1,
+    BOARDING_OP_SOFT_AP_START = 2,
+    BOARDING_OP_SERVICE_UDP_START = 3,
+    BOARDING_OP_SERVICE_TCP_START = 4,
+    BOARDING_OP_SET_CS2_DID = 5,
+    BOARDING_OP_SET_CS2_APILICENSE = 6,
+    BOARDING_OP_SET_CS2_KEY = 7,
+    BOARDING_OP_SET_CS2_INIT_STRING = 8,
+    BOARDING_OP_SRRVICE_CS2_START = 9,
+    BOARDING_OP_BLE_DISABLE = 10,
+    BOARDING_OP_SET_WIFI_CHANNEL = 11,
+    BOARDING_OP_AGORA_AGENT_RSP = 12,
+    BOARDING_OP_SET_AGORA_AGENT_INFO = 13,
+    BOARDING_OP_NET_PAN_START = 14,
+    BOARDING_OP_NETWORK_PROVISIONING_FIRST_TIME = 15,
+    BOARDING_OP_START_AGENT_FROM_DEV = 16,
+    BOARDING_OP_OTA_START_DOWNLOAD = 20,
+    BOARDING_OP_OTA_DO_DOWNLOADING = 21,
+    BOARDING_OP_OTA_COMPLETE_DOWNLOAD = 22,
+} boarding_opcode_t;
+
+typedef void (*ble_boarding_op_cb_t)(uint16_t opcode, uint16_t length, uint8_t *data);
+typedef struct
+{
+    char *ssid_value;
+    char *password_value;
+    ble_boarding_op_cb_t cb;
+    uint8_t boarding_notify[2];
+    uint16_t ssid_length;
+    uint16_t password_length;
+} ble_boarding_info_t;
+
+typedef struct
+{
+    ble_boarding_info_t boarding_info;
+    uint16_t channel;
+} bk_boarding_info_t;
+
+typedef struct
+{
+    char ssid[33];
+    char password[65];
+    uint16_t channel;
+} boarding_wifi_config_t;
+
+
+#define EVT_STATUS_OK               (0)
+#define EVT_STATUS_ERROR            (1)
+
+typedef enum
+{
+    DBEVT_BLE_DISABLE,
+    DBEVT_OTA_START_DOWNLOAD,
+    DBEVT_OTA_DO_DOWNLOADING,
+    DBEVT_OTA_COMPLETE_DOWNLOAD,
+    DBEVT_OTHER_EVT,
+    DBEVT_BLE_DISCONNECTED,
+
+    DBEVT_EXIT,
+} dbevt_t;
+
+typedef struct
+{
+    uint32_t event;
+    uintptr_t param;
+    uint16_t length;
+    uint32_t sub_evt;
+} boarding_msg_t;
+
+bk_err_t boarding_send_msg(boarding_msg_t *msg);
+bk_err_t wifi_boarding_demo_service_main(void);
+bool wifi_boarding_demo_service_is_ready(void);
+bk_err_t wifi_boarding_demo_reg_external_cmd(void (*cb)(uint16_t op, uint8_t *data, uint32_t len));
+void wifi_boarding_demo_reg_ble_disconnect_cb(void (*cb)(void));
+bk_err_t bk_boarding_event_notify(uint16_t opcode, int status);
+bk_err_t bk_boarding_event_notify_with_data(uint16_t opcode, int status, const char *payload, uint16_t length);
+void ble_ota_start_timer(void);
+void ble_ota_stop_timer(void);

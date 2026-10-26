@@ -1,0 +1,14 @@
+#pragma once
+
+#include "AvdkDetectionModel.h"
+
+class YolofaceDetectionModel : public AvdkDetectionModel
+{
+public:
+    void setModelFilePath(const char *path);
+
+    void resolverLoad(void);
+    void resourceLoad(void);
+    void resourceUnload(void);
+    int run(uint8_t *data, uint32_t size, bk_pixel_format_t format);
+};

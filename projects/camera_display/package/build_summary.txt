@@ -1,0 +1,41 @@
+------------------------------------------------------------
+---------------------  BUILD  SUMMARY  ---------------------
+------------------------------------------------------------
+===================== Partitions Table =====================
+Name                              Offset            Size    
+------------------------------------------------------------
+primary_bootloader              0x00000000          64K     
+primary_cp_app                  0x00010000         1696K    
+primary_ap_app                  0x001b8000         3540K    
+ota                             0x0052d000         1224K    
+usr_config                      0x0065f000          60K     
+easyflash                       0x0066e000           8K     
+easyflash_ap                    0x00670000           8K     
+(unused)                        0x00672000         1584K    
+sys_rf                          0x007fe000           4K     
+sys_net                         0x007ff000           4K     
+===================== APP Memory Info ======================
+>>>>>>>>>> CP
+name                     addr       size        used   usage
+------------------------------------------------------------
+FLASH                 0x04010000 0x001a8000 1680692 B 96.77%
+IRAM                  0x2c000000 0x0005ef00   29536 B  7.60%
+RAM                   0x2c000000 0x0005ef00  207524 B 53.37%
+SWAP                  0x2c05f000 0x00001000    4096 B100.00%
+PSRAM_HEAP            0x64900000 0x00020000       0 B  0.00%
+<<<<<<<<<< CP
+>>>>>>>>>> AP
+name                     addr       size        used   usage
+------------------------------------------------------------
+FLASH                 0x041b8000 0x00375000 1451872 B 40.05%
+IRAM                  0x2c180000 0x00060000    1952 B  0.50%
+RAM                   0x2c180000 0x00060000  110084 B 28.00%
+SWAP                  0x2c05f000 0x00001000    4096 B100.00%
+DTCM                  0x20000000 0x0000ffe0    3000 B  4.58%
+PSRAM_HEAP            0x64960000 0x0065d000       0 B  0.00%
+PSRAM_CODE_SECTION    0x64ffd000 0x00003000       0 B  0.00%
+PSRAM_DATA_SECTION    0x64920000 0x00040000       0 B  0.00%
+<<<<<<<<<< AP
+======================= Output Info ========================
+firmware: /home/shi.xiang/wps/DEBUG-SPACE/bk_solution_edge_ai_release_4.0.1/1019/solution_1/projects/camera_display/build/bk7259/camera_display/package/all-app.bin
+ota binary: /home/shi.xiang/wps/DEBUG-SPACE/bk_solution_edge_ai_release_4.0.1/1019/solution_1/projects/camera_display/build/bk7259/camera_display/package/app_pack.rbl

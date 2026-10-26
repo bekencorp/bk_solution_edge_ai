@@ -1,0 +1,363 @@
+#include "dashcam_camera.h"
+
+#include <string.h>
+#include "app_camera.h"
+#include "app_codec.h"
+#include "components/bk_encode/bk_h264_encode_ctlr.h"
+#include "components/bk_flexa_bond.h"
+#include "components/log.h"
+#include "dashcam_config.h"
+#include "driver/gpio.h"
+#include "os/os.h"
+
+#define TAG "d_camera"
+#define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
+#define LOGW(...) BK_LOGW(TAG, ##__VA_ARGS__)
+#define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
+#define LOGD(...) BK_LOGD(TAG, ##__VA_ARGS__)
+
+/* MIPI sensor wiring (mirrors dashcam_video.c defaults). */
+#ifndef DASHCAM_CAMERA_PIN_SCL
+#define DASHCAM_CAMERA_PIN_SCL    GPIO_69
+#endif
+#ifndef DASHCAM_CAMERA_PIN_SDA
+#define DASHCAM_CAMERA_PIN_SDA    GPIO_70
+#endif
+#ifndef DASHCAM_CAMERA_I2C_ID
+#define DASHCAM_CAMERA_I2C_ID     1
+#endif
+/*
+ * SCH-7259_V1.0 (dashboard v1) board: the GC2053 RSTN line is hardware
+ * pulled high, so the sensor is released from reset without firmware help.
+ * GPIO_71 on this board is BK3515NS BT_EN, so driving it as camera reset
+ * would clash with Bluetooth bring-up. Use the 0xFF "no pin" sentinel so
+ * csi_gc2053.c skips the reset toggle entirely (it guards on pin_reset != 0xFF).
+ */
+#ifndef DASHCAM_CAMERA_PIN_RESET
+#define DASHCAM_CAMERA_PIN_RESET  ((uint8_t)-1)
+#endif
+#ifndef DASHCAM_CAMERA_PIN_PWDN
+#define DASHCAM_CAMERA_PIN_PWDN   ((uint8_t)-1)
+#endif
+#ifndef DASHCAM_CAMERA_PIN_XCLK
+#define DASHCAM_CAMERA_PIN_XCLK   GPIO_59
+#endif
+#define DASHCAM_CAMERA_SENSOR_WIDTH   1920
+#define DASHCAM_CAMERA_SENSOR_HEIGHT  1080
+#define DASHCAM_CAMERA_SENSOR_FPS     25
+
+static bool s_open = false;
+static bool s_record_user = false;
+static bool s_assist_user = false;
+static void *s_isp_encode_bond = NULL;
+static bool s_encoder_on = false;
+
+/*
+ * Serializes every camera open/close path (record + assist, driven from the UI
+ * thread and from async dcam_load workers). s_record_user and s_assist_user
+ * together are the ISP user refcount: the shared MIPI+ISP is powered on when
+ * the first user acquires it and off only when the last user releases it.
+ *
+ * Before this lock the "check s_open / turn_on / set flag" sequence was a
+ * TOCTOU window: two paths could both see !s_open and both call
+ * app_isp_mipi_camera_turn_on(), double-opening the ISP and leaking an
+ * isp_core thread (BK7259SW-3427). Holding the lock across the whole
+ * check-then-act makes each acquire/release atomic and keeps the refcount and
+ * the actual ISP power state consistent.
+ */
+static beken_mutex_t s_cam_lock = NULL;
+
+bk_err_t dashcam_camera_init(void)
+{
+    if (s_cam_lock == NULL)
+    {
+        return rtos_init_mutex(&s_cam_lock);
+    }
+    return BK_OK;
+}
+
+static void dashcam_camera_lock(void)
+{
+    if (s_cam_lock == NULL)
+    {
+        /* Fallback for any caller that runs before dashcam_camera_init(); the
+         * very first open at boot is single-threaded, so this is race-free. */
+        (void)dashcam_camera_init();
+    }
+    if (s_cam_lock != NULL)
+    {
+        rtos_lock_mutex(&s_cam_lock);
+    }
+}
+
+static void dashcam_camera_unlock(void)
+{
+    if (s_cam_lock != NULL)
+    {
+        rtos_unlock_mutex(&s_cam_lock);
+    }
+}
+
+static void dashcam_camera_fill_board(camera_board_config_t *cfg)
+{
+    memset(cfg, 0, sizeof(*cfg));
+
+    cfg->mipi.enable = true;
+    cfg->mipi.pin_scl = DASHCAM_CAMERA_PIN_SCL;
+    cfg->mipi.pin_sda = DASHCAM_CAMERA_PIN_SDA;
+    cfg->mipi.i2c_id = DASHCAM_CAMERA_I2C_ID;
+    cfg->mipi.pin_reset = DASHCAM_CAMERA_PIN_RESET;
+    cfg->mipi.pin_pwdn = DASHCAM_CAMERA_PIN_PWDN;
+    cfg->mipi.pin_xclk = DASHCAM_CAMERA_PIN_XCLK;
+    cfg->mipi.sensor_max_width = DASHCAM_CAMERA_SENSOR_WIDTH;
+    cfg->mipi.sensor_max_height = DASHCAM_CAMERA_SENSOR_HEIGHT;
+    cfg->mipi.sensor_fps = DASHCAM_CAMERA_SENSOR_FPS;
+    cfg->mipi.hmirror = DASHCAM_CAMERA_HMIRROR;
+    cfg->mipi.vflip = DASHCAM_CAMERA_VFLIP;
+
+    cfg->isp.mp_enable = true;
+    cfg->isp.mp_format = BK_PIXEL_FORMAT_NV12;
+
+    /* MP streams via flexa, feeding both the H264 encoder (recorder) and, when
+     * the assist view is up, a second MP->GPU bond. The SP (live preview)
+     * channel is never brought up so its NV12 buffers stay free (req5 §9.1 OOM
+     * fix). */
+    cfg->isp.mp_flexa = true;
+    cfg->isp.mp_width = DASHCAM_RECORD_WIDTH;
+    cfg->isp.mp_height = DASHCAM_RECORD_HEIGHT;
+    cfg->isp.sp_enable = false;
+    cfg->isp.sp_flexa = false;
+}
+
+static bk_err_t dashcam_camera_start_encoder_bond(void)
+{
+    void *isp_handle = app_isp_handle_get();
+    bk_h264_encode_ctlr_handle_t enc_handle;
+
+    if (isp_handle == NULL)
+    {
+        LOGE("app_isp_handle_get failed\n");
+        return BK_FAIL;
+    }
+
+    if (app_h264e_turn_on() != BK_OK)
+    {
+        LOGE("app_h264e_turn_on failed\n");
+        return BK_FAIL;
+    }
+    s_encoder_on = true;
+
+    enc_handle = (bk_h264_encode_ctlr_handle_t)app_h264_encode_handle_get();
+    if (enc_handle == NULL)
+    {
+        LOGE("app_h264_encode_handle_get failed\n");
+        return BK_FAIL;
+    }
+
+    if (bk_flexa_isp_h264e_bond_start(&s_isp_encode_bond, isp_handle, enc_handle) != AVDK_ERR_OK)
+    {
+        LOGE("bk_flexa_isp_h264e_bond_start failed\n");
+        s_isp_encode_bond = NULL;
+        return BK_FAIL;
+    }
+
+    return BK_OK;
+}
+
+static void dashcam_camera_stop_encoder_bond(void)
+{
+    if (s_isp_encode_bond != NULL)
+    {
+        bk_flexa_isp_h264e_bond_stop(s_isp_encode_bond);
+        s_isp_encode_bond = NULL;
+    }
+
+    if (s_encoder_on)
+    {
+        (void)app_h264e_turn_off();
+        s_encoder_on = false;
+    }
+}
+
+static bk_err_t dashcam_camera_open_isp(void)
+{
+    camera_board_config_t cfg;
+
+    if (s_open)
+    {
+        return BK_OK;
+    }
+
+    dashcam_camera_fill_board(&cfg);
+    if (app_camera_board_config_set(&cfg) != BK_OK)
+    {
+        LOGE("app_camera_board_config_set failed\n");
+        return BK_FAIL;
+    }
+
+    if (app_isp_mipi_camera_turn_on(app_camera_board_config_get()) != BK_OK)
+    {
+        LOGE("app_isp_mipi_camera_turn_on failed\n");
+        return BK_FAIL;
+    }
+
+    s_open = true;
+    LOGI("camera ISP open MP=%ux%u\n",
+         (unsigned)DASHCAM_RECORD_WIDTH,
+         (unsigned)DASHCAM_RECORD_HEIGHT);
+    return BK_OK;
+}
+
+static void dashcam_camera_close_isp_if_unused(void)
+{
+    bk_err_t ret;
+
+    if (!s_open || s_record_user || s_assist_user)
+    {
+        return;
+    }
+
+    /*
+     * app_isp_camera_turn_off() bails out on the first failing teardown step
+     * and leaves isp_cam_handle.camera_ctlr_handle set. Discarding that error
+     * and clearing s_open anyway used to desync this layer from the driver
+     * permanently: every later open saw !s_open, called
+     * app_isp_mipi_camera_turn_on() and got AVDK_ERR_BUSY "camera already
+     * turned on", so the camera could not be reopened until a reboot (assist
+     * view then failed every time). Keep s_open set when the close fails so
+     * the refcount still describes reality and the next open reuses the ISP
+     * that is in fact still on.
+     */
+    ret = app_isp_camera_turn_off();
+    if (ret != BK_OK)
+    {
+        LOGE("app_isp_camera_turn_off failed: %d, ISP left open\n", (int)ret);
+        return;
+    }
+
+    s_open = false;
+    LOGI("camera ISP closed\n");
+}
+
+bk_err_t dashcam_camera_open(void)
+{
+    bool isp_was_open;
+
+    dashcam_camera_lock();
+
+    LOGD("record open req (open=%d record=%d assist=%d)\n",
+         (int)s_open, (int)s_record_user, (int)s_assist_user);
+
+    if (s_record_user)
+    {
+        dashcam_camera_unlock();
+        return BK_OK;
+    }
+
+    isp_was_open = s_open;
+
+    if (dashcam_camera_open_isp() != BK_OK)
+    {
+        dashcam_camera_unlock();
+        return BK_FAIL;
+    }
+
+    if (dashcam_camera_start_encoder_bond() != BK_OK)
+    {
+        dashcam_camera_stop_encoder_bond();
+        if (!isp_was_open && !s_assist_user)
+        {
+            /* Same rule as dashcam_camera_close_isp_if_unused(): only report
+             * the ISP as closed if the driver actually closed it, otherwise
+             * this layer and the driver desync and the camera can never be
+             * reopened. */
+            bk_err_t off_ret = app_isp_camera_turn_off();
+
+            if (off_ret != BK_OK)
+            {
+                LOGE("app_isp_camera_turn_off failed: %d, ISP left open\n", (int)off_ret);
+            }
+            else
+            {
+                s_open = false;
+            }
+        }
+        dashcam_camera_unlock();
+        return BK_FAIL;
+    }
+
+    s_record_user = true;
+    LOGI("record camera open, ISP->H264 bond active\n");
+    dashcam_camera_unlock();
+    return BK_OK;
+}
+
+void dashcam_camera_close(void)
+{
+    dashcam_camera_lock();
+
+    LOGD("record close (open=%d record=%d assist=%d)\n",
+         (int)s_open, (int)s_record_user, (int)s_assist_user);
+
+    if (!s_record_user)
+    {
+        dashcam_camera_unlock();
+        return;
+    }
+
+    s_record_user = false;
+    dashcam_camera_stop_encoder_bond();
+    dashcam_camera_close_isp_if_unused();
+    LOGI("record camera closed\n");
+    dashcam_camera_unlock();
+}
+
+bk_err_t dashcam_camera_open_for_assist(void)
+{
+    dashcam_camera_lock();
+
+    LOGD("assist open req (open=%d record=%d assist=%d)\n",
+         (int)s_open, (int)s_record_user, (int)s_assist_user);
+
+    if (s_assist_user)
+    {
+        dashcam_camera_unlock();
+        return BK_OK;
+    }
+
+    if (dashcam_camera_open_isp() != BK_OK)
+    {
+        dashcam_camera_unlock();
+        return BK_FAIL;
+    }
+
+    s_assist_user = true;
+    LOGI("assist camera open, ISP->H264 bond %s\n",
+         s_record_user ? "kept for recording" : "not created");
+    dashcam_camera_unlock();
+    return BK_OK;
+}
+
+void dashcam_camera_close_for_assist(void)
+{
+    dashcam_camera_lock();
+
+    LOGD("assist close (open=%d record=%d assist=%d)\n",
+         (int)s_open, (int)s_record_user, (int)s_assist_user);
+
+    if (!s_assist_user)
+    {
+        dashcam_camera_unlock();
+        return;
+    }
+
+    s_assist_user = false;
+    dashcam_camera_close_isp_if_unused();
+    LOGI("assist camera closed\n");
+    dashcam_camera_unlock();
+}
+
+bool dashcam_camera_is_open(void)
+{
+    return s_open;
+}

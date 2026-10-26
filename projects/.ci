@@ -1,0 +1,3 @@
+cd face_recognition;./dbuild.sh make bk7259
+cd dashboard;./dbuild.sh make bk7259
+cd camera_display;./dbuild.sh make bk7259

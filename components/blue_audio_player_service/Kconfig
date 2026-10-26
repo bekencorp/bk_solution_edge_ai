@@ -1,0 +1,64 @@
+# KCONFIG_GROUP: Solution & Product
+menu "Blue Audio Player Service"
+
+	config BLUE_AUDIO_PLAYER_SERVICE
+		depends on ADK_RAW_STREAM && (ADK_SBC_DECODER || ADK_AAC_DECODER || SW_SBC_DECODER) && (ADK_ONBOARD_SPEAKER_STREAM || ADK_UAC_SPEAKER_STREAM)
+		bool "Enable Blue Audio Player Service"
+		default n
+		help
+			Enable Blue Audio Player Service to play audio frame data recevied from Bluetooth
+
+	config BLUE_AUDIO_PLAYER_SERVICE_TEST
+		depends on BLUE_AUDIO_PLAYER_SERVICE
+		bool "Enable Blue Audio Player Service Test"
+		default n
+		help
+			Enable Blue Audio Player Service test to test Blue Audio Player Service by cli command
+
+    config BLUE_AUDIO_PLAYER_SERVICE_SUPPORT_AAC_DECODER
+		depends on BLUE_AUDIO_PLAYER_SERVICE && ADK_AAC_DECODER
+		bool "Enable Blue Audio Player Service to support aac decoder"
+		default n
+
+    config BLUE_AUDIO_PLAYER_SERVICE_SUPPORT_LC3_DECODER
+		depends on BLUE_AUDIO_PLAYER_SERVICE && ADK_LC3_DECODER
+		bool "Enable Blue Audio Player Service to support lc3 decoder"
+		default n
+		help
+			The LC3 decoder is not supported yet and will be adapted later
+
+    config BLUE_AUDIO_PLAYER_SERVICE_SUPPORT_UAC_SPEAKER
+		depends on BLUE_AUDIO_PLAYER_SERVICE && ADK_UAC_SPEAKER_STREAM
+		bool "Enable Blue Audio Player Service to support uac speaker"
+		default n
+
+    config BLUE_AUDIO_PLAYER_SERVICE_SUPPORT_MIX
+		depends on BLUE_AUDIO_PLAYER_SERVICE && ADK_MIX_ALGORITHM
+		bool "Enable Blue Audio Player Service to support mix algorithm"
+		default n
+
+    config BLUE_AUDIO_PLAYER_SERVICE_SUPPORT_EQ
+		depends on BLUE_AUDIO_PLAYER_SERVICE && ADK_EQ_ALGORITHM
+		bool "Enable Blue Audio Player Service to support EQ algorithm"
+		default n
+		help
+			Enable EQ algorithm support in Blue Audio Player Service for audio equalization processing
+
+	config PIPELINE_DEBUG_PCM_TAP
+		depends on BLUE_AUDIO_PLAYER_SERVICE && SW_SBC_DECODER
+		bool "Pipeline debug: insert PCM tap element before speaker"
+		default n
+		help
+			Insert a passthrough PCM tap element before speaker for debugging.
+			It logs PCM sample info periodically and optionally dumps data via UART2.
+			Disable this in production to save one task, one ring-buffer copy and one frame latency.
+
+	config PIPELINE_DEBUG_USE_NULL_SINK
+		depends on BLUE_AUDIO_PLAYER_SERVICE && SW_SBC_DECODER
+		bool "Pipeline debug: use null_sink instead of speaker"
+		default n
+		help
+			Replace onboard_speaker with null_sink (read and discard, no resample/DMA) to verify
+			whether send queue failed is caused by speaker resample/DMA or by any downstream consumer.
+
+endmenu

@@ -1,0 +1,7 @@
+# KCONFIG_GROUP: Solution & Product
+menu "BK3515_OTA"
+
+    config BK3515_OTA
+        bool "Enable bk3515 ota, Send data via uart"
+        default n
+endmenu
