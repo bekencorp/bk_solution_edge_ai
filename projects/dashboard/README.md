@@ -21,7 +21,7 @@ This guide applies to Dashboard V1.0 hardware equipped with a 1024×600 display 
 | Recording playback | 1024×600 output, rotated 180° |
 | Resolution-specific resources | Background images whose names contain `1024x600`, plus layouts, icons, and fonts sized for this resolution |
 
-The firmware and UI resources in this project are intended only for the 1024×600 display. Do not mix them with firmware or generated resources from `scooter_dashboard_v1_1280_720_v2`.
+The firmware and UI resources in this project are intended only for the 1024×600 display. Do not mix them with firmware or generated resources from projects with other resolutions.
 
 ### Jumper Configuration
 
