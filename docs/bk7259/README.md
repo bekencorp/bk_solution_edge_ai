@@ -1,6 +1,6 @@
-# BK7259 两轮车方案 文档源码（bk7259/）
+# BK7259 边缘 AI 方案 文档源码（bk7259/）
 
-本目录是 BK7259 两轮车方案 Sphinx 文档的源码，结构如下：
+本目录是 BK7259 边缘 AI 方案 Sphinx 文档的源码，结构如下：
 
 ```
 bk7259/
@@ -12,7 +12,7 @@ bk7259/
 │   ├── get-started/   # 快速入门（环境部署见 Armino SMP，本仓不维护 env-manual / env-docker）
 │   ├── hw-reference/  # 硬件参考
 │   ├── software/      # 配套软件（Dashboard App）
-│   └── projects/      # 参考工程（scooter_* 两轮车仪表工程）
+│   └── projects/      # 参考工程（face_recognition / dashboard / camera_display）
 └── zh_CN/                                                  # 中文文档（结构同 en/）
 ```
 

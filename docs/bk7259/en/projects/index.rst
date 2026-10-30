@@ -8,3 +8,4 @@ Reference Projects
 
     camera_display/index
     dashboard/index
+    face_recognition/index
