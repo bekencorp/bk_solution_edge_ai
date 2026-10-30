@@ -32,21 +32,17 @@ We recommend that customers choose the tag with the highest version number in th
 <!-- readme-get-started:code -->
 ## Get the Code
 
-The BK7259 Edge AI Solution and the Armino SMP SDK are released simultaneously to GitHub, Gitee, and GitLab. Choose the code source based on your network environment and access permissions.
+The BK7259 Edge AI Solution and the Armino SMP SDK are released on GitHub.
 
 BK7259 Edge AI Solution:
 
 - GitHub: [https://github.com/bekencorp/bk_solution_edge_ai](https://github.com/bekencorp/bk_solution_edge_ai)
-- Gitee: [https://gitee.com/bekencorp/bk_solution_edge_ai](https://gitee.com/bekencorp/bk_solution_edge_ai)
-- GitLab: [https://gitlab.bekencorp.com/armino/smp_solution/bk_solution_edge_ai](https://gitlab.bekencorp.com/armino/smp_solution/bk_solution_edge_ai)
 
 Armino SMP SDK:
 
 - GitHub: [https://github.com/bekencorp/bk_avdk_smp](https://github.com/bekencorp/bk_avdk_smp)
-- Gitee: [https://gitee.com/bekencorp/bk_avdk_smp](https://gitee.com/bekencorp/bk_avdk_smp)
-- GitLab: [https://gitlab.bekencorp.com/armino/bk_avdk_smp](https://gitlab.bekencorp.com/armino/bk_avdk_smp)
 
-GitHub and Gitee are publicly accessible. GitLab is available only to enterprise customers; enterprise customers who need access should contact their FAE or sales representative to apply for permission.
+GitHub is publicly accessible.
 
 **Note for Windows users**: When using Git for Windows to get the code, we recommend disabling automatic line-ending conversion before cloning, to avoid scripts or source files being converted to CRLF and causing build failures. This is not required on Linux, macOS, or WSL.
 
@@ -56,7 +52,7 @@ git config --global core.autocrlf false
 
 If the code has already been cloned, changing this setting will not automatically restore the files, so we recommend re-cloning after setting it.
 
-The following commands use GitHub and the `release/v4.0.1.6` tag as an example. **When actually getting the code, choose the latest released tag and make sure the solution code and the SDK use exactly the same tag**. When using another code source, replace the repository URL accordingly.
+The following commands use GitHub and the `release/v4.0.1.6` tag as an example. **When actually getting the code, choose the latest released tag and make sure the solution code and the SDK use exactly the same tag**.
 
 ```bash
 mkdir -p ~/armino && cd ~/armino

@@ -32,21 +32,17 @@
 <!-- readme-get-started:code -->
 ## 获取代码
 
-BK7259 边缘 AI 解决方案和 Armino SMP SDK 均同步发布至 GitHub、Gitee 和 GitLab，可根据网络环境及访问权限选择代码源。
+BK7259 边缘 AI 解决方案和 Armino SMP SDK 均发布至 GitHub。
 
 BK7259 边缘 AI 解决方案：
 
 - GitHub：[https://github.com/bekencorp/bk_solution_edge_ai](https://github.com/bekencorp/bk_solution_edge_ai)
-- Gitee：[https://gitee.com/bekencorp/bk_solution_edge_ai](https://gitee.com/bekencorp/bk_solution_edge_ai)
-- GitLab：[https://gitlab.bekencorp.com/armino/smp_solution/bk_solution_edge_ai](https://gitlab.bekencorp.com/armino/smp_solution/bk_solution_edge_ai)
 
 Armino SMP SDK：
 
 - GitHub：[https://github.com/bekencorp/bk_avdk_smp](https://github.com/bekencorp/bk_avdk_smp)
-- Gitee：[https://gitee.com/bekencorp/bk_avdk_smp](https://gitee.com/bekencorp/bk_avdk_smp)
-- GitLab：[https://gitlab.bekencorp.com/armino/bk_avdk_smp](https://gitlab.bekencorp.com/armino/bk_avdk_smp)
 
-GitHub 和 Gitee 可公开访问。GitLab 仅面向企业客户开放；企业客户如需访问，请联系对接的 FAE 或销售人员申请开通权限。
+GitHub 可公开访问。
 
 **Windows 用户注意**：使用 Git for Windows 获取代码时，建议在克隆前关闭自动换行符转换，避免脚本或源文件被转换为 CRLF 而导致编译失败。Linux、macOS 和 WSL 环境无需执行。
 
@@ -56,7 +52,7 @@ git config --global core.autocrlf false
 
 如果代码已经克隆，修改该配置不会自动恢复文件，建议设置后重新克隆。
 
-以下命令以 GitHub 和 `release/v4.0.1.6` 标签为例。**实际获取代码时，请选择最新发布的标签，并确保方案代码与 SDK 使用完全相同的标签**。使用其他代码源时，替换对应的仓库地址即可。
+以下命令以 GitHub 和 `release/v4.0.1.6` 标签为例。**实际获取代码时，请选择最新发布的标签，并确保方案代码与 SDK 使用完全相同的标签**。
 
 ```bash
 mkdir -p ~/armino && cd ~/armino
