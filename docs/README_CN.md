@@ -25,9 +25,8 @@
 
 - `release/v4.0.1` 为持续维护分支，用于该版本系列的功能迭代和问题修复，始终包含最新代码，但其中可能包含尚未完成完整发布测试的改动。
 - `release/v4.0.1.x` 为正式发布标签，例如 `release/v4.0.1.1`、`release/v4.0.1.2`。每个标签均经过完整的测试与发布流程，可作为量产版本使用。
-- BK7259 边缘 AI 解决方案与 Armino SMP SDK 必须使用完全相同的版本标签。例如，方案代码使用 `release/v4.0.1.6` 时，SDK 也必须使用 `release/v4.0.1.6`。
 
-建议客户选择 `release/v4.0.1.x` 系列中版本号最大的标签进行开发和量产。仅需体验最新功能或参与开发时，才建议使用 `release/v4.0.1` 分支。
+建议方案代码选择 `release/v4.0.1.x` 系列中版本号最大的标签进行开发和量产，Armino SMP SDK 使用 `release/v4.0.1.12` 版本。使用前请确认所选方案标签与该 SDK 版本兼容。
 
 <!-- readme-get-started:code -->
 ## 获取代码
@@ -40,7 +39,7 @@ BK7259 边缘 AI 解决方案：
 
 Armino SMP SDK：
 
-- GitHub：[https://github.com/bekencorp/bk_avdk_smp](https://github.com/bekencorp/bk_avdk_smp)
+- GitHub：[https://github.com/bekencorp/bk_avdk_smp/tree/release/v4.0.1.12](https://github.com/bekencorp/bk_avdk_smp/tree/release/v4.0.1.12)
 
 GitHub 可公开访问。
 
@@ -52,16 +51,16 @@ git config --global core.autocrlf false
 
 如果代码已经克隆，修改该配置不会自动恢复文件，建议设置后重新克隆。
 
-以下命令以 GitHub 和 `release/v4.0.1.6` 标签为例。**实际获取代码时，请选择最新发布的标签，并确保方案代码与 SDK 使用完全相同的标签**。
+以下命令以 GitHub 为代码源，Armino SMP SDK 使用 `release/v4.0.1.12` 标签，BK7259 边缘 AI 解决方案使用 `release/v4.0.1.1` 标签。
 
 ```bash
 mkdir -p ~/armino && cd ~/armino
 
 # Armino SMP SDK
-git clone --branch release/v4.0.1.6 https://github.com/bekencorp/bk_avdk_smp.git
+git clone --branch release/v4.0.1.12 https://github.com/bekencorp/bk_avdk_smp.git
 
 # BK7259 边缘 AI 解决方案
-git clone --branch release/v4.0.1.6 https://github.com/bekencorp/bk_solution_edge_ai.git
+git clone --branch release/v4.0.1.1 https://github.com/bekencorp/bk_solution_edge_ai.git
 ```
 
 <!-- readme-get-started:env -->
