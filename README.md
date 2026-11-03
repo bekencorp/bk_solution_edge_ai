@@ -26,7 +26,7 @@ This solution uses a "maintenance branch + release tag" version management appro
 - `release/v4.0.1` is the ongoing maintenance branch, used for feature iteration and bug fixes in this version series. It always contains the latest code, but it may include changes that have not yet completed the full release testing.
 - `release/v4.0.1.x` are official release tags, such as `release/v4.0.1.1` and `release/v4.0.1.2`. Each tag has gone through the complete testing and release process and can be used as a mass-production version.
 
-For solution development and mass production, customers should choose the highest tag in the `release/v4.0.1.x` series. Use `release/v4.0.1.12` for the Armino SMP SDK. Before use, make sure the selected solution tag is compatible with this SDK version.
+The BK7259 Edge AI Solution uses the `release/v4.0.1` branch, and the Armino SMP SDK uses the `release/v4.0.1.12` tag. Before use, make sure the current code on the solution branch is compatible with this SDK version.
 
 <!-- readme-get-started:code -->
 ## Get the Code
@@ -51,7 +51,7 @@ git config --global core.autocrlf false
 
 If the code has already been cloned, changing this setting will not automatically restore the files, so we recommend re-cloning after setting it.
 
-The following commands use GitHub as the code source, with the Armino SMP SDK using the `release/v4.0.1.12` tag and the BK7259 Edge AI Solution using the `release/v4.0.1.1` tag.
+The following commands use GitHub as the code source, with the Armino SMP SDK using the `release/v4.0.1.12` tag.
 
 ```bash
 mkdir -p ~/armino && cd ~/armino
@@ -60,7 +60,7 @@ mkdir -p ~/armino && cd ~/armino
 git clone --branch release/v4.0.1.12 https://github.com/bekencorp/bk_avdk_smp.git
 
 # BK7259 Edge AI Solution
-git clone --branch release/v4.0.1.1 https://github.com/bekencorp/bk_solution_edge_ai.git
+git clone https://github.com/bekencorp/bk_solution_edge_ai.git
 ```
 
 <!-- readme-get-started:env -->
