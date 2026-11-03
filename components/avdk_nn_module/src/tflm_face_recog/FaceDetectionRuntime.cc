@@ -41,7 +41,10 @@ FaceDetectionRuntime::FaceDetectionRuntime()
       candidates_(nullptr),
       model_(),
       model_file_path_(nullptr),
-      output_specs_ready_(false)
+      output_specs_ready_(false),
+      last_invoke_us_(0),
+      last_post_us_(0),
+      last_arena_used_(0)
 {
 }
 
@@ -212,14 +215,17 @@ int FaceDetectionRuntime::invokeAndDecode(tflite::MicroInterpreter *interpreter,
         MicroPrintf("FaceDetect Invoke failed\r\n");
         return 0;
     }
+    last_invoke_us_ = bk_aon_rtc_get_us() - invoke_start_us;
+    last_arena_used_ = interpreter->arena_used_bytes();
     MicroPrintf("U65 NPU | tensorflow-lite-micro detect invoke: %llu ms\r\n",
-                (bk_aon_rtc_get_us() - invoke_start_us) / 1000ULL);
+                last_invoke_us_ / 1000ULL);
 
     unsigned long long post_start_us = bk_aon_rtc_get_us();
     int candidate_count = decode(candidates_, kDetectTopkCandidates);
     int kept = nms(candidates_, candidate_count, out, max_out);
+    last_post_us_ = bk_aon_rtc_get_us() - post_start_us;
     MicroPrintf("FaceDetect: post-process (decode + NMS) took %llu ms\r\n",
-                (bk_aon_rtc_get_us() - post_start_us) / 1000ULL);
+                last_post_us_ / 1000ULL);
     return kept;
 }
 

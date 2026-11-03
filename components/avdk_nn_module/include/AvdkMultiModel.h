@@ -32,6 +32,14 @@ public:
     uint8_t *modelData();
     uint32_t modelDataSize() const;
 
+    /* Read-only view of the shared NPU resources. Both models in the face
+     * pipeline share one arena and one fast-scratch buffer; reporting the real
+     * shared sizes avoids counting them twice. */
+    static uint32_t sharedArenaSize();
+    static avdk_nn_mem_type_t sharedArenaType();
+    static uint32_t fastScratchSize();
+    static avdk_nn_mem_type_t fastScratchType();
+
 private:
     void *allocMemory(avdk_nn_mem_type_t type, uint32_t size);
     void freeMemory(avdk_nn_mem_type_t type, void *ptr);

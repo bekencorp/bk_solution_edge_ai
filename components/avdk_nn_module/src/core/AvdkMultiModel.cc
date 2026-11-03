@@ -572,3 +572,23 @@ uint32_t AvdkMultiModel::modelDataSize() const
 {
     return model_data_size_;
 }
+
+uint32_t AvdkMultiModel::sharedArenaSize()
+{
+    return s_shared_arena_size_;
+}
+
+avdk_nn_mem_type_t AvdkMultiModel::sharedArenaType()
+{
+    return s_shared_arena_type_;
+}
+
+uint32_t AvdkMultiModel::fastScratchSize()
+{
+    return s_fast_ram_data_size_;
+}
+
+avdk_nn_mem_type_t AvdkMultiModel::fastScratchType()
+{
+    return s_fast_ram_type_;
+}

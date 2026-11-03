@@ -40,6 +40,22 @@ static constexpr int kMaxFaceDetections = 32;
 
 static Box s_face_out_boxes[kMaxFaceDetections];
 
+namespace {
+/* Stamps run_total_us on every exit path, including the early failures. */
+struct FaceRunTimer {
+    explicit FaceRunTimer(FaceRunStats *stats)
+        : start_us(bk_aon_rtc_get_us()), stats_(stats) {}
+
+    ~FaceRunTimer()
+    {
+        stats_->run_total_us = (uint32_t)(bk_aon_rtc_get_us() - start_us);
+    }
+
+    unsigned long long start_us;
+    FaceRunStats *stats_;
+};
+}
+
 static const FacePoint kArcfaceDst[kFaceDetectKeypointCount] = {
     {38.2946f, 51.6963f},
     {73.5318f, 51.5014f},
@@ -214,6 +230,53 @@ exit:
     return ok;
 }
 
+static void face_fill_model_info(const uint8_t *data, uint32_t size, FaceModelInfo *info)
+{
+    if (info == nullptr) {
+        return;
+    }
+    os_memset(info, 0, sizeof(*info));
+    info->size = size;
+
+    if (data == nullptr || size == 0) {
+        return;
+    }
+
+    const tflite::Model *model = tflite::GetModel(data);
+    if (model == nullptr) {
+        return;
+    }
+
+    info->valid = true;
+
+    const auto *subgraphs = model->subgraphs();
+    if (subgraphs == nullptr || subgraphs->size() == 0) {
+        return;
+    }
+
+    const tflite::SubGraph *main_graph = subgraphs->Get(0);
+    if (main_graph == nullptr || main_graph->tensors() == nullptr) {
+        return;
+    }
+
+    if (main_graph->inputs() != nullptr && main_graph->inputs()->size() > 0) {
+        const int index = main_graph->inputs()->Get(0);
+        if (index >= 0 && (uint32_t)index < main_graph->tensors()->size()) {
+            const tflite::Tensor *tensor = main_graph->tensors()->Get(index);
+            if (tensor != nullptr && tensor->shape() != nullptr) {
+                uint32_t dims = tensor->shape()->size();
+                if (dims > 4) {
+                    dims = 4;
+                }
+                info->input_dims_count = (int)dims;
+                for (uint32_t d = 0; d < dims; d++) {
+                    info->input_dims[d] = tensor->shape()->Get(d);
+                }
+            }
+        }
+    }
+}
+
 FaceRecognitionModel::FaceRecognitionModel()
     : detector_(new FaceDetectionRuntime()),
       verifier_(new FaceVerifyRuntime()),
@@ -223,7 +286,10 @@ FaceRecognitionModel::FaceRecognitionModel()
       verify_enabled_(false),
       runtimes_initialized_(false),
       last_detect_us_(0),
-      last_verify_us_(0)
+      last_verify_us_(0),
+      last_run_stats_{},
+      detect_model_info_{},
+      verify_model_info_{}
 {
     name = "FaceRecognitionModel";
     width = kDetectInputW;
@@ -332,9 +398,24 @@ void FaceRecognitionModel::resourceLoad(void)
         return;
     }
 
+    face_fill_model_info(detector_->modelData(), detector_->modelDataSize(),
+                         &detect_model_info_);
+    face_fill_model_info(verifier_->modelData(), verifier_->modelDataSize(),
+                         &verify_model_info_);
+
     runtimes_initialized_ = true;
     MicroPrintf("FaceRecognitionModel resourceLoad detect=%s verify=%s\r\n",
                 modelFilePath, verify_model_file_path_);
+}
+
+uint32_t FaceRecognitionModel::getSharedArenaSize(void) const
+{
+    return AvdkMultiModel::sharedArenaSize();
+}
+
+uint32_t FaceRecognitionModel::getFastScratchSize(void) const
+{
+    return AvdkMultiModel::fastScratchSize();
 }
 
 void FaceRecognitionModel::resourceUnload(void)
@@ -375,6 +456,13 @@ int FaceRecognitionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t pi
     (void)size;
     (void)pixel_format;
 
+    os_memset(&last_run_stats_, 0, sizeof(last_run_stats_));
+    last_run_stats_.detect_model_size = (detector_ != nullptr) ? detector_->modelDataSize() : 0;
+    last_run_stats_.verify_model_size = (verifier_ != nullptr) ? verifier_->modelDataSize() : 0;
+    last_run_stats_.shared_arena_size = AvdkMultiModel::sharedArenaSize();
+    last_run_stats_.fast_scratch_size = AvdkMultiModel::fastScratchSize();
+    FaceRunTimer run_timer(&last_run_stats_);
+
 #define FACE_RECOG_NOTIFY_ENROLL_FAIL()                                      \
     do {                                                                     \
         if (verify_enabled_ && enroll_result_callback_ != nullptr) {          \
@@ -386,10 +474,13 @@ int FaceRecognitionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t pi
         FACE_RECOG_NOTIFY_ENROLL_FAIL();
         return 0;
     }
+
+    unsigned long long stage_start_us = bk_aon_rtc_get_us();
     if (!ensureDetectorInterpreter()) {
         FACE_RECOG_NOTIFY_ENROLL_FAIL();
         return 0;
     }
+    last_run_stats_.detect_prepare_us = (uint32_t)(bk_aon_rtc_get_us() - stage_start_us);
 
     TfLiteTensor *input = pinterpreter->input(0);
     if (input == nullptr || input->type != kTfLiteInt8) {
@@ -404,8 +495,9 @@ int FaceRecognitionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t pi
         FACE_RECOG_NOTIFY_ENROLL_FAIL();
         return 0;
     }
+    last_run_stats_.input_norm_us = (uint32_t)(bk_aon_rtc_get_us() - start_us);
     MicroPrintf("FaceRecognition: input normalize (BGRA -> RGB int8) took %llu ms\r\n",
-                (bk_aon_rtc_get_us() - start_us) / 1000ULL);
+                (unsigned long long)last_run_stats_.input_norm_us / 1000ULL);
 
     FaceDetection *detections = (FaceDetection *)bk_frame_buffer_malloc(
         MEM_SLAB_HEAP_UNCODED, sizeof(FaceDetection) * kMaxFaceDetections);
@@ -417,6 +509,10 @@ int FaceRecognitionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t pi
     start_us = bk_aon_rtc_get_us();
     const int det_count = detector_->invokeAndDecode(pinterpreter, detections, kMaxFaceDetections);
     last_detect_us_ = bk_aon_rtc_get_us() - start_us;
+    last_run_stats_.detect_invoke_us = (uint32_t)detector_->lastInvokeUs();
+    last_run_stats_.detect_post_us = (uint32_t)detector_->lastPostUs();
+    last_run_stats_.detect_arena_used = detector_->lastArenaUsed();
+    last_run_stats_.detect_count = det_count;
     if (det_count <= 0) {
         onBoxDetectionCallback(NULL, 0);
         bk_frame_buffer_free(detections);
@@ -487,8 +583,9 @@ int FaceRecognitionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t pi
                                      VG_LITE_BGRX8888,
                                      affine,
                                      aligned_rgb);
+    last_run_stats_.align_us = (uint32_t)(bk_aon_rtc_get_us() - start_us);
     MicroPrintf("FaceRecognition: align (VG-Lite 5-point warp) took %llu ms\r\n",
-                (bk_aon_rtc_get_us() - start_us) / 1000ULL);
+                (unsigned long long)last_run_stats_.align_us / 1000ULL);
     if (!align_ok) {
         if (verify_enabled_ && enroll_result_callback_ != nullptr) {
             enroll_result_callback_(nullptr, nullptr, 0);
@@ -511,13 +608,25 @@ int FaceRecognitionModel::run(uint8_t *data, uint32_t size, bk_pixel_format_t pi
     }
     os_memset(result, 0, sizeof(FaceVerifyResult));
 
+    start_us = bk_aon_rtc_get_us();
     releaseDetectorInterpreter();
+    last_run_stats_.detect_release_us = (uint32_t)(bk_aon_rtc_get_us() - start_us);
+
     start_us = bk_aon_rtc_get_us();
     bool verify_ok = verifier_->extract(aligned_rgb,
                                         kAlignedFaceBytes,
                                         result);
     last_verify_us_ = bk_aon_rtc_get_us() - start_us;
+    last_run_stats_.verify_prepare_us = (uint32_t)verifier_->lastPrepareUs();
+    last_run_stats_.verify_input_us = (uint32_t)verifier_->lastInputUs();
+    last_run_stats_.verify_invoke_us = (uint32_t)verifier_->lastInvokeUs();
+    last_run_stats_.verify_post_us = (uint32_t)verifier_->lastPostUs();
+    last_run_stats_.verify_arena_used = verifier_->lastArenaUsed();
+    last_run_stats_.verify_valid = verify_ok;
+
+    start_us = bk_aon_rtc_get_us();
     verifier_->releaseInterpreter();
+    last_run_stats_.verify_release_us = (uint32_t)(bk_aon_rtc_get_us() - start_us);
 
     if (!verify_ok) {
         if (verify_enabled_ && enroll_result_callback_ != nullptr) {

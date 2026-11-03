@@ -37,6 +37,17 @@ public:
     bool buildOutputSpecs(tflite::MicroInterpreter *interpreter);
     int invokeAndDecode(tflite::MicroInterpreter *interpreter, FaceDetection *out, int max_out);
 
+    /* Timings of the most recent invokeAndDecode(), in microseconds, plus the
+     * tensor-arena high-water mark seen by this model. Filled before the
+     * per-run log lines are printed, so the values are stable for reporting. */
+    unsigned long long lastInvokeUs() const { return last_invoke_us_; }
+    unsigned long long lastPostUs() const { return last_post_us_; }
+    uint32_t lastArenaUsed() const { return last_arena_used_; }
+
+    /* Read-only model accessors used by the memory report. */
+    uint8_t *modelData() { return model_.modelData(); }
+    uint32_t modelDataSize() const { return model_.modelDataSize(); }
+
 private:
     struct OutputSpec {
         int stride;
@@ -56,4 +67,7 @@ private:
     AvdkMultiModel model_;
     const char *model_file_path_;
     bool output_specs_ready_;
+    unsigned long long last_invoke_us_;
+    unsigned long long last_post_us_;
+    uint32_t last_arena_used_;
 };

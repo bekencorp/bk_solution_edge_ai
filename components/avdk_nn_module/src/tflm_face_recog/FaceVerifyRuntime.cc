@@ -51,7 +51,12 @@ static inline void u8_minus128_inplace(uint8_t *buf, uint32_t size)
 
 FaceVerifyRuntime::FaceVerifyRuntime()
     : model_file_path_(nullptr),
-      model_()
+      model_(),
+      last_prepare_us_(0),
+      last_input_us_(0),
+      last_invoke_us_(0),
+      last_post_us_(0),
+      last_arena_used_(0)
 {
 }
 
@@ -121,9 +126,11 @@ bool FaceVerifyRuntime::extract(const uint8_t *rgb_image,
                     (unsigned)image_len, (unsigned)kVerifyInputBytes);
         return false;
     }
+    unsigned long long prepare_start_us = bk_aon_rtc_get_us();
     if (!initInterpreter()) {
         return false;
     }
+    last_prepare_us_ = bk_aon_rtc_get_us() - prepare_start_us;
 
     tflite::MicroInterpreter *interpreter = model_.interpreter();
     if (interpreter == nullptr) {
@@ -137,24 +144,28 @@ bool FaceVerifyRuntime::extract(const uint8_t *rgb_image,
         return false;
     }
 
-    unsigned long long prepare_start_us = bk_aon_rtc_get_us();
+    unsigned long long input_start_us = bk_aon_rtc_get_us();
     os_memcpy(input->data.int8, rgb_image, image_len);
     u8_minus128_inplace((uint8_t *)input->data.int8, (uint32_t)image_len);
+    last_input_us_ = bk_aon_rtc_get_us() - input_start_us;
     MicroPrintf("FaceVerify: input prepare (copy + normalize) took %llu ms\r\n",
-                (bk_aon_rtc_get_us() - prepare_start_us) / 1000ULL);
+                last_input_us_ / 1000ULL);
 
     unsigned long long invoke_start_us = bk_aon_rtc_get_us();
     if (interpreter->Invoke() != kTfLiteOk) {
         MicroPrintf("FaceVerify Invoke failed\r\n");
         return false;
     }
+    last_invoke_us_ = bk_aon_rtc_get_us() - invoke_start_us;
+    last_arena_used_ = interpreter->arena_used_bytes();
     MicroPrintf("U65 NPU | tensorflow-lite-micro verify invoke: %llu ms\r\n",
-                (bk_aon_rtc_get_us() - invoke_start_us) / 1000ULL);
+                last_invoke_us_ / 1000ULL);
 
     unsigned long long post_start_us = bk_aon_rtc_get_us();
     bool ok = copyOutputEmbedding(output, result);
+    last_post_us_ = bk_aon_rtc_get_us() - post_start_us;
     MicroPrintf("FaceVerify: post-process (embedding copy) took %llu ms\r\n",
-                (bk_aon_rtc_get_us() - post_start_us) / 1000ULL);
+                last_post_us_ / 1000ULL);
     return ok;
 }
 
