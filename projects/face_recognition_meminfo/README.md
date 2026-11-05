@@ -1,8 +1,8 @@
-# Face Recognition Demo (face_recognition_meminfo)
+# MobileNetV1 NPU Benchmark (face_recognition_meminfo)
 
 * [中文](./README_CN.md)
 
-An enhanced version of the `face_recognition` demo. The recognition flow is identical (SCRFD detects faces, Arcface extracts face features, TensorFlow Lite Micro runs the inference on the U65 NPU); the addition is a **test report printed at the end of every round**, summarising model sizes, how the shared tensor arena / fast scratch are time-multiplexed, per-stage timings, the recognition result and a PASS/FAIL verdict. It is meant to be shown directly in a demo or used as a performance summary.
+This project started as a face-recognition demo. It now follows `bk_avdk_smp_release_4.0.1/projects/tflite_micro/datasheet_model_test` and runs a **MobileNetV1 benchmark**: the `mobilenet_v1_1_0_224_quant_vela_tflite` model is compiled into the firmware, copied to PSRAM at start-up, and then invoked repeatedly with a 224×224×3 all-zero input so that only the NPU inference time matters. The `ROUND N TEST REPORT` printed at the end of every round keeps the same format as the face version: model size, where the model / arena / fast scratch live and how much they use, invoke timings and a PASS/FAIL verdict.
 
 ## Development Board Guide
 
@@ -16,15 +16,14 @@ This guide applies to Dashboard V1.0 (SCH-7259_V1.0) hardware and corresponds to
 | --- | --- |
 | SoC | BK7259 |
 | Inference framework | TensorFlow Lite Micro, running on the U65 NPU |
-| Face detection | SCRFD, 320×320 BGRA input, int8 quantised |
-| Face features | Arcface, 112×112 RGB input, 512-float embedding |
-| Face alignment | VG-Lite GPU 5-point similarity transform to 112×112 |
-| Face gallery | 3 people (Alice / Bob / Jason), embeddings kept in RAM |
-| Match decision | Cosine similarity, threshold 0.70 |
-| Image input | Three 320×320 images compiled into the firmware; no camera |
+| Model | MobileNetV1, uint8 quantised, Vela compiled, 224×224×3 input, 1001-class output |
+| Model location | Compiled into flash, copied to a PSRAM slab (uncoded) at start-up |
+| Tensor arena | 1024 KB, PSRAM slab |
+| Ethos-U fast scratch | 448 KB, HSRAM |
+| Input data | 224×224×3 all-zero data refilled before every invoke |
 | Display | No LCD and no LVGL; every result goes to the serial log |
-| SD card | SDIO1, 4-line; the models are loaded from the card (`1:/tflite`) |
-| Test report | Printed once per round: model sizes, memory map, per-stage timings and the verdict |
+| SD card | Not used; the model does not depend on the card |
+| Test report | Printed once per round: model size, memory map, invoke timings and the verdict |
 
 ### Jumper Configuration
 
@@ -37,117 +36,77 @@ Before powering on, verify that the following jumpers are connected:
 ### Interface Usage
 
 - Use the **USB-UART** interface for BK7259 flashing and serial logs.
-- No key is bound in this project; the demo starts automatically after boot.
-
-## SD Card Preparation
-
-Place the face models in the `tflite` directory on the SD card:
-
-| File | Purpose |
-| --- | --- |
-| `/tflite/face_detection_int8_vela.tflite` | SCRFD face detection model |
-| `/tflite/face_verify_int8_vela.tflite` | Arcface face feature model |
-
-The SD card is mounted at `/sd0` and also registered as FatFs volume `1:`, which is the path the firmware uses to load the models (`1:/tflite/...`). If the mount fails or a model is missing, the log shows `model init failed` and the demo stops.
+- No key is bound in this project; the benchmark starts automatically after boot.
 
 ## Boot Flow
 
 1. `bk_init()` + media service init.
-2. Frame buffer init.
-3. Mount the SD card at `/sd0`.
-4. Bring up VG-Lite (GPU init only; the flexa display path stays closed).
-5. Create the `face_task` thread and start the demo.
+2. Frame buffer init (both the arena and the model buffer come from these heaps).
+3. Create the `model_task` thread.
+4. Allocate 448 KB of HSRAM as the Ethos-U fast scratch and bring up the NPU.
+5. Copy the model from flash into a PSRAM slab (uncoded).
+6. Allocate a 1024 KB PSRAM slab as the tensor arena, create the interpreter and call `AllocateTensors()`.
+7. Verify that the input tensor is `[1,224,224,3]`, 150528 bytes, then enter the loop.
 
 ## Demo Flow
 
-1. **Meet the crew**: the three images go through detect → align → verify once, and their 512-float embeddings are stored in RAM as Alice, Bob and Jason.
-2. **Recognition loop**: in every round the three images step up as visitors and are each compared against all three memorised faces to produce a "who is it" verdict.
-3. Visitors are 300 ms apart; rounds are 5 seconds apart and re-introduce the robot.
-4. **Test report**: after all visitors in a round, the device prints `ROUND N TEST REPORT` with that round's models, memory map, timings and result, then waits 5 seconds before the next round.
+1. Every round calls `Invoke()` three times; the input tensor is zeroed before each call.
+2. Each call prints `mobilenet_v1 Invoke #N: xx.xx ms`.
+3. After the three runs the device prints `ROUND N TEST REPORT` with the round's average / minimum / maximum invoke time and the actual arena usage.
+4. It waits 5 seconds and starts the next round.
 
 ## Observe the Log
 
-The serial console prints the whole pipeline and its timings (excerpt):
+Serial output (example only; values depend on the actual run):
 
 ```
 ================================================
-hi! I am BK7259's face recognition robot
-my SCRFD eyes spot faces, my Arcface brain tells who you are
-detect input 320x320, 3 faces on the guest list
+mobilenet_v1 benchmark: input 224x224x3, 150528 zero bytes per invoke
 ================================================
-first, let me meet the crew and remember who is who
-reading Alice...
-ap0:TFLM:FaceRecognition: input normalize (BGRA -> RGB int8) took 7 ms
-ap0:TFLM:U65 NPU | tensorflow-lite-micro detect invoke: 21 ms
-ap0:TFLM:FaceDetect: post-process (decode + NMS) took 2 ms
-ap0:face_app:SCRFD: face found at (127,117 36x48), confidence 85%, took 24 ms
-ap0:TFLM:FaceRecognition: align (VG-Lite 5-point warp) took 1 ms
-ap0:TFLM:FaceVerify: input prepare (copy + normalize) took 0 ms
-ap0:TFLM:U65 NPU | tensorflow-lite-micro verify invoke: 35 ms
-ap0:TFLM:FaceVerify: post-process (embedding copy) took 0 ms
-ap0:face_app:   Alice: fingerprint saved, 512 floats living in RAM (norm=35.703)
-...
-3 faces in my pocket, now the game begins!
+
 ------------------------------------------------
-hi! I am BK7259's face recognition robot
-my SCRFD eyes spot faces, my Arcface brain tells who you are
-round 1: knock knock, who is at the door?
-visitor 1 of 3 is coming up
-let me look at you with SCRFD first...
-ap0:face_app:SCRFD: face found at (127,117 36x48), confidence 85%, took 24 ms
-ap0:face_app:ok, I can see you. now Arcface, let me tell who you are: verify took 37 ms
-ap0:face_app:let me compare you against my 3 friends...
-ap0:face_app:   vs Alice: similarity 1.0000
-ap0:face_app:   vs Bob: similarity 0.0821
-ap0:face_app:   vs Jason: similarity 0.1522
-ap0:face_app:...done, comparing 3 faces took 0.41 ms
-ap0:face_app:aha! you are Alice, nice to see you again (similarity=1.0000)
-that is everybody for this round, let's play again
+round 1: 3 invokes on an all-zero input
+mobilenet_v1 Invoke #1: 18.42 ms
+mobilenet_v1 Invoke #2: 18.35 ms
+mobilenet_v1 Invoke #3: 18.51 ms
 
 ---------------- round 1 done, next one in 5 seconds ----------------
 
 ================ ROUND 1 TEST REPORT ================
 [System]
   chip        : BK7259 (Cortex-M55 + Ethos-U65)
-  firmware    : face_recognition_meminfo  built Nov  3 2026 16:22:30
+  firmware    : face_recognition_meminfo  built Nov  4 2026 18:30:00
   round       : 1
 [Models]
-  SCRFD detect       727.5 KB  input 320x320x3
-  ArcFace verify    2315.1 KB  input 112x112x3
+  MobileNetV1       3215.8 KB  input 224x224x3
 [Memory map]
-  detect model  :   727.5 KB  SD file -> PSRAM slab (uncoded)
-  verify model  :  2315.1 KB  SD file -> PSRAM slab (uncoded)
-  shared arena  :   750.0 KB  PSRAM slab (uncoded), one buffer reused by detect and verify
-  fast scratch  :   256.0 KB  HSRAM, shared by both models
+  model         :  3215.8 KB  linked in flash -> PSRAM slab (uncoded)
+  shared arena  :  1024.0 KB  PSRAM slab, tensor arena used by Invoke
+  fast scratch  :   448.0 KB  HSRAM, Ethos-U fast scratch
 [Result]
-  visitors 3, recognized 3, failures 0, detect avg 13.31 ms, verify avg 23.55 ms
-  Alice    vs Alice 1.0000 | Bob   0.0821 | Jason 0.1522  -> Alice
-  Bob      vs Alice 0.0821 | Bob   1.0000 | Jason 0.0649  -> Bob
-  Jason    vs Alice 0.1522 | Bob   0.0649 | Jason 1.0000  -> Jason
+  invokes 3, failures 0, invoke avg 18.43 ms (min 18.35, max 18.51)
+  arena used  :   468.0 KB /  1024.0 KB (45.7%)
   VERDICT     : PASS
-CSV,round=1,detect_us=13312,verify_us=23552,acc=3/3,pass=1
+CSV,round=1,invoke_us=18427,runs=3/3,pass=1
 =======================================================
 ```
 
 Reading the log:
 
-- The `ap0:TFLM:` prefix is TFLM's debug output (enabled by `FaceRecognitionModel::LogEnable(true)`). The `U65 NPU | tensorflow-lite-micro ... invoke` lines make it clear that the inference runs on the U65 NPU.
-- Every stage prints its own millisecond timing, in true execution order: normalize → NPU detect → detect post-process → align → verify input prepare → NPU feature extract → verify post-process.
-- The `ap0:face_app:` prefix marks the demo's own log: box position and confidence, embedding norm, the similarity against each of the three faces, and the final verdict.
-- The highest similarity decides the match when it is at least 0.70; otherwise the log prints `stranger`.
-- The test report has four sections: `[System]` runtime context, `[Models]` model size and input shape, `[Memory map]` where the models live and how the shared arena / fast scratch are multiplexed between them, and `[Result]` the round's recognition outcome and verdict.
-- `detect avg` is the average cost of NPU detection plus post-processing; `verify avg` covers verify model preparation, input normalisation, NPU inference and embedding post-processing.
+- The `ap0:multi-model:` prefix comes from `AvdkMultiModel`; at start-up it prints `AvdkMultiModel::init mobilenet_v1`.
+- The input tensor is refilled with zeros before every `Invoke()`, so the measurement covers `Invoke()` only, not data preparation.
+- The test report has four sections: `[System]` runtime context, `[Models]` model size and input shape, `[Memory map]` which memory the model / arena / fast scratch live in, their sizes and what they are used for, and `[Result]` the round's invoke statistics and verdict.
+- `arena used` is what `AllocateTensors()` really consumed out of the 1024 KB arena, so the remaining headroom is visible.
 - The final CSV line can be imported directly into a spreadsheet to trend multiple rounds.
 
 ## Key Source Files
 
 | Path | Purpose |
 | --- | --- |
-| `ap/ap_main.cc` | Demo flow, SD-card mount, GPU bring-up, per-round test report |
-| `ap/resource/face3_image_input.cc` etc. | The three 320×320 BGRA images compiled into the firmware |
-| `components/avdk_nn_module` | The `tflm_face_recog` component: model wrappers and face alignment |
-| `components/avdk_nn_module/src/tflm_face_recog/FaceRecognitionModel.cc` | Collects model metadata and per-stage timings for the report |
-| `components/multimedia_device_service/src/app_gpu.c` | VG-Lite bring-up and the GPU lock |
+| `ap/ap_main.cc` | NPU bring-up, model load, per-round invokes and the test report |
+| `ap/resource/mobilenet_v1_model_data.cc` | The MobileNetV1 Vela model compiled into flash (3,292,944 bytes) |
+| `components/avdk_nn_module/src/core/AvdkMultiModel.cc` | Model loading, fast scratch / shared arena management and interpreter creation |
+| `bk_avdk_smp_release_4.0.1/projects/tflite_micro/datasheet_model_test` | The original benchmark this project follows |
 
 ## Build
 
