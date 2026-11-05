@@ -22,7 +22,7 @@ extern const unsigned int face_detection_vela_tflite_len;
 
 static constexpr int kDetectInputW = 320;
 static constexpr int kDetectInputH = 320;
-static constexpr int kDetectScratchSize = 256 * 1024;
+static constexpr int kDetectScratchSize = 448 * 1024;
 static constexpr int kDetectArenaSize = 750 * 1024;
 static constexpr int kDetectNumOutputs = 9;
 static constexpr int kDetectNumStrides = 3;

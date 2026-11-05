@@ -52,7 +52,7 @@ CONFIG_BK_H264E=y
 # CONFIG_WIFI_CLI_DEBUG is not set
 # CONFIG_WIFI_VNET_CONTROLLER is not set
 CONFIG_FATFS=y
-CONFIG_FATFS_SDCARD=y
+# CONFIG_FATFS_SDCARD is not set
 CONFIG_VFS=y
 CONFIG_LVGL=y
 CONFIG_LVGL_V9=y
@@ -67,11 +67,8 @@ CONFIG_MEDIA_SERVICE=y
 # CONFIG_DRIVER_TEST is not set
 # CONFIG_UART_TEST is not set
 # CONFIG_SDIO_DWC_V1P0 is not set
-CONFIG_SDCARD=y
-# SCH-7259_V1.0 wires the SD card to SDIO1 (P14-P19), 4-line.
-# sd_test defaulted to SDIO0 (P2-P4), 1-bit; align with the board.
-CONFIG_SDCARD_HOST_ID=1
-CONFIG_SDCARD_BUSWIDTH_4LINE=y
+# The two face models are linked into the firmware, so no SD card is needed.
+# CONFIG_SDCARD is not set
 
 # CONFIG_IPI is not set
 CONFIG_LCD_QSPI=y

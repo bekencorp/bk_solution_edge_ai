@@ -40,10 +40,9 @@ static char TAG[] = "face_app";
 #define LOGI(...) BK_LOGI(TAG, ##__VA_ARGS__)
 #define LOGE(...) BK_LOGE(TAG, ##__VA_ARGS__)
 
-/* Model files on the SD card. These match the names the tflm_face_recog
- * component defaults to, so keep them in sync with the card contents. */
-#define FACE_MODEL_DETECT_PATH   "1:/tflite/face_detection_int8_vela.tflite"
-#define FACE_MODEL_VERIFY_PATH   "1:/tflite/face_verify_int8_vela.tflite"
+/* The two vela models are linked into the firmware by the tflm_face_recog
+ * component (see avdk_nn_module/CMakeLists.txt), so no storage setup is needed
+ * here - the runtimes pick the embedded arrays up by themselves. */
 
 /* The embedded frames are SCRFD detection inputs: 320x320, 4 bytes per pixel
  * BGRA - exactly the layout FaceRecognitionModel::run() consumes. */
@@ -83,49 +82,6 @@ static bool s_probe_valid = false;
 /* The enroll callback fires from inside run(), so the task needs a way to reach
  * the timings of the run that is in flight. */
 static FaceRecognitionModel *s_model = NULL;
-
-/* SD/FatFs mount contract, mirrored from ap/components/bk_vfs/bk_partition.h.
- * That header cannot be included from C++ (it nests named structs inside
- * anonymous unions), and bk_posix.h is unusable too because its
- * `mount`/`ftell`/`feof`/`rename` macros rewrite <cstdio>'s own declarations.
- * Keep these values in sync with the SDK headers. */
-extern "C" {
-int bk_vfs_mount(const char *source, const char *target, const char *fs_type,
-                 unsigned long mount_flags, const void *data);
-}
-
-#define FACE_SD_MOUNT_PATH   "/sd0"      /* VFS_SD_0_PATITION_0 */
-#define FACE_SD_FS_TYPE      "fatfs"     /* FS_TYPE_FATFS */
-#define FACE_SD_DEV_NAME     "sdcard"    /* FATFS_DEV_SDCARD */
-#define FACE_FATFS_DEVICE    0           /* FATFS_DEVICE */
-
-/* Mirrors struct bk_fatfs_partition: its anonymous union's first member is
- * part_dev.device_name, so a plain pointer preserves the layout. */
-struct face_fatfs_partition {
-    int part_type;
-    const char *mount_path;
-    const char *device_name;
-};
-
-/* Mount the SD card as a VFS FatFs volume. The mount also registers it as the
- * bare FatFs volume "1:", which is the path the model loader uses. */
-static int face_sd_mount(void)
-{
-    struct face_fatfs_partition partition = {0};
-
-    partition.part_type = FACE_FATFS_DEVICE;
-    partition.mount_path = FACE_SD_MOUNT_PATH;
-    partition.device_name = FACE_SD_DEV_NAME;
-
-    int ret = bk_vfs_mount("SOURCE_NONE", partition.mount_path,
-                           FACE_SD_FS_TYPE, 0, &partition);
-    if (ret != BK_OK)
-    {
-        LOGE("mount SD card failed, ret=%d\r\n", ret);
-    }
-
-    return ret;
-}
 
 /* The robot says hello: once at boot and again at the top of every round, so
  * the demo still introduces itself when the log is picked up mid-run. */
@@ -237,8 +193,6 @@ static void face_task(void *arg)
     }
     s_model = model;
 
-    model->setModelFilePath(FACE_MODEL_DETECT_PATH);
-    model->setVerifyModelFilePath(FACE_MODEL_VERIFY_PATH);
     model->setBoxDetectionCallback(face_box_callback);
     model->setEnrollResultCallback(face_enroll_callback);
     /* verify_enabled_ gates the enroll callback, so it must stay on. */
@@ -246,8 +200,7 @@ static void face_task(void *arg)
 
     if (model->init() != 0)
     {
-        LOGE("model init failed, check %s and %s on the SD card\r\n",
-             FACE_MODEL_DETECT_PATH, FACE_MODEL_VERIFY_PATH);
+        LOGE("model init failed\r\n");
         return;
     }
 
@@ -293,7 +246,7 @@ static void face_task(void *arg)
     }
     if (known_count == 0)
     {
-        LOGE("nobody said hello, check the models on the SD card\r\n");
+        LOGE("nobody said hello, check the embedded models\r\n");
         return;
     }
 
@@ -371,11 +324,6 @@ int main(void)
 #ifdef CONFIG_FRAME_BUFFER
     bk_frame_buffer_init();
 #endif
-
-    if (face_sd_mount() != BK_OK)
-    {
-        LOGE("SD mount failed, the face models can not be loaded\r\n");
-    }
 
     /* The align step inside the verify path blits with VG-Lite directly and
      * only guards it with app_gpu_lock()/unlock(), which fail until the GPU has

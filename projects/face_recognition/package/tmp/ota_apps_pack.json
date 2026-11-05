@@ -13,7 +13,7 @@
             "firmware": "app1.bin",
             "partition": "app1",
             "start_addr": "0x001b8000",
-            "size": "4148K"
+            "size": "5M"
         }
     ]
 }

@@ -27,7 +27,7 @@ static constexpr int kVerifyInputW = 112;
 static constexpr int kVerifyInputH = 112;
 static constexpr int kVerifyInputC = 3;
 static constexpr int kVerifyInputBytes = kVerifyInputW * kVerifyInputH * kVerifyInputC;
-static constexpr int kVerifyScratchSize = 256 * 1024;
+static constexpr int kVerifyScratchSize = 448 * 1024;
 static constexpr int kVerifyArenaSize = 450 * 1024;
 
 static inline void u8_minus128_inplace(uint8_t *buf, uint32_t size)

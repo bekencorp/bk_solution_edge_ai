@@ -23,7 +23,7 @@
 | 相似度判定 | 余弦相似度，阈值 0.70 |
 | 图像输入 | 3 张 320×320 图片编译进固件，不使用摄像头 |
 | 显示 | 不使用 LCD 与 LVGL，结论全部通过串口日志输出 |
-| SD 卡 | SDIO1 4 线，模型文件从 SD 卡加载（`1:/tflite`） |
+| 外部存储 | 不需要，两个模型已编译进固件 |
 
 ### 模型来源
 
@@ -34,7 +34,7 @@
 | SCRFD | 人脸检测（320×320 输入） | <https://github.com/deepinsight/insightface/tree/master/detection/scrfd> |
 | GhostFaceNets | 人脸特征提取（112×112 输入，512 维特征） | <https://github.com/HamadYA/GhostFaceNets> |
 
-两个模型都经过 int8 量化，并由 Vela 编译成 Ethos-U 可执行的 `.tflite`，放到 SD 卡 `tflite` 目录后由固件加载（见下文「SD 卡准备」）。
+两个模型都经过 int8 量化，并由 Vela 编译成 Ethos-U 可执行的 `.tflite`，再转成 C 数组编译进固件（见下文「模型编译进固件」），启动时拷贝到 PSRAM 后运行。
 
 > **License 说明**：SCRFD 与 GhostFaceNets 的模型代码均采用 MIT License，可商用；本工程使用的两个模型均由自行收集的数据训练得到。
 
@@ -51,24 +51,23 @@
 - BK7259 下载和串口日志均使用 **USB-UART** 接口。
 - 本工程未绑定任何按键功能，设备上电后自动开始演示。
 
-## SD 卡准备
+## 模型编译进固件
 
-人脸模型放在 SD 卡根目录的 `tflite` 目录下：
+两个模型以 C 数组的形式编译进固件，运行时不依赖 SD 卡：
 
 | 文件 | 用途 |
 | --- | --- |
-| `/tflite/face_detection_int8_vela.tflite` | SCRFD 人脸检测模型 |
-| `/tflite/face_verify_int8_vela.tflite` | GhostFaceNets 人脸特征模型 |
+| `components/avdk_nn_module/src/tflm_face_recog/face_detect_model_data.cc` | SCRFD 人脸检测模型（666,240 B） |
+| `components/avdk_nn_module/src/tflm_face_recog/face_verify_model_data.cc` | GhostFaceNets 人脸特征模型（2,370,704 B） |
 
-SD 卡挂载到 `/sd0`，同时注册为 FatFs 卷 `1:`，固件按 `1:/tflite/...` 加载模型。启动时若挂载失败或模型缺失，会打印 `model init failed` 并停止演示。
+`CONFIG_SDCARD` 关闭后，`tflm_face_recog` 组件会自动编译这两个数组，并在启动时把模型拷贝到 PSRAM slab（uncoded）供 NPU 使用。两个模型合计约 2.9 MB，因此 `primary_ap_app` 分区已从 4148K 扩大到 5120K，烧录时需要同时更新分区表。
 
 ## 启动流程
 
 1. `bk_init()` 与 media service 初始化。
 2. 初始化 frame buffer。
-3. 挂载 SD 卡到 `/sd0`。
-4. VG-Lite 上电（只调用 GPU 初始化，不打开 flexa 显示通路）。
-5. 创建 `face_task` 线程，进入演示流程。
+3. VG-Lite 上电（只调用 GPU 初始化，不打开 flexa 显示通路）。
+4. 创建 `face_task` 线程，进入演示流程。
 
 ## 演示流程
 
@@ -78,92 +77,89 @@ SD 卡挂载到 `/sd0`，同时注册为 FatFs 卷 `1:`，固件按 `1:/tflite/.
 
 ## 观察日志
 
-串口会打印完整的推理过程与耗时。以下是板子上运行到**第 73 轮**时的实际串口输出（完整一轮，含 3 位访客）：
+串口会打印完整的推理过程与耗时。以下是板子上运行到**第 4 轮**时的实际串口输出（完整一轮，含 3 位访客）：
 
 ```
-ap0:face_app:I(439365):------------------------------------------------
-ap0:face_app:I(439365):hi! I am BK7259's face recognition robot
-ap0:face_app:I(439365):my SCRFD eyes spot faces, my Arcface brain tells who you are
-ap0:face_app:I(439365):round 73: knock knock, who is at the door?
-ap0:face_app:I(439365):visitor 1 of 3 is coming up
-ap0:face_app:I(439365):let me look at you with SCRFD first...
-ap0:TFLM:I(439384):FaceRecognition: input normalize (BGRA -> RGB int8) took 8 ms
-ap0:TFLM:I(439384):
-ap0:TFLM:I(439395):U65 NPU | tensorflow-lite-micro detect invoke: 10 ms
-ap0:TFLM:I(439395):
-ap0:TFLM:I(439398):FaceDetect: post-process (decode + NMS) took 2 ms
-ap0:TFLM:I(439398):
-ap0:face_app:I(439398):SCRFD: face found at (127,117 36x48), confidence 85%, took 13 ms
-ap0:TFLM:I(439399):FaceRecognition: align (VG-Lite 5-point warp) took 0 ms
-ap0:TFLM:I(439399):
-ap0:TFLM:I(439401):FaceVerify: input prepare (copy + normalize) took 1 ms
-ap0:TFLM:I(439401):
-ap0:TFLM:I(439422):U65 NPU | tensorflow-lite-micro verify invoke: 20 ms
-ap0:TFLM:I(439422):
-ap0:TFLM:I(439422):FaceVerify: post-process (embedding copy) took 0 ms
-ap0:TFLM:I(439422):
-ap0:face_app:I(439422):ok, I can see you. now Arcface, let me tell who you are: verify took 23 ms
-ap0:face_app:I(439423):let me compare you against my 3 friends...
-ap0:face_app:I(439423):   vs Alice: similarity 1.0000
-ap0:face_app:I(439423):   vs Bob: similarity 0.0821
-ap0:face_app:I(439423):   vs Jason: similarity 0.1522
-ap0:face_app:I(439423):...done, comparing 3 faces took 0.41 ms
-ap0:face_app:I(439423):aha! you are Alice, nice to see you again (similarity=1.0000)
-
-ap0:face_app:I(439723):visitor 2 of 3 is coming up
-ap0:face_app:I(439723):let me look at you with SCRFD first...
-ap0:TFLM:I(439742):FaceRecognition: input normalize (BGRA -> RGB int8) took 8 ms
-ap0:TFLM:I(439742):
-ap1:TFLM:I(439753):U65 NPU | tensorflow-lite-micro detect invoke: 10 ms
-ap1:TFLM:I(439753):
-ap1:TFLM:I(439755):FaceDetect: post-process (decode + NMS) took 2 ms
-ap1:TFLM:I(439755):
-ap1:face_app:I(439755):SCRFD: face found at (74,50 55x78), confidence 85%, took 13 ms
-ap0:TFLM:I(439756):FaceRecognition: align (VG-Lite 5-point warp) took 0 ms
-ap0:TFLM:I(439756):
-ap0:TFLM:I(439758):FaceVerify: input prepare (copy + normalize) took 1 ms
-ap0:TFLM:I(439758):
-ap0:TFLM:I(439779):U65 NPU | tensorflow-lite-micro verify invoke: 20 ms
-ap0:TFLM:I(439779):
-ap0:TFLM:I(439780):FaceVerify: post-process (embedding copy) took 0 ms
-ap0:TFLM:I(439780):
-ap0:face_app:I(439780):ok, I can see you. now Arcface, let me tell who you are: verify took 23 ms
-ap0:face_app:I(439780):let me compare you against my 3 friends...
-ap0:face_app:I(439780):   vs Alice: similarity 0.0821
-ap0:face_app:I(439780):   vs Bob: similarity 1.0000
-ap0:face_app:I(439780):   vs Jason: similarity 0.0649
-ap0:face_app:I(439781):...done, comparing 3 faces took 0.41 ms
-ap0:face_app:I(439781):aha! you are Bob, nice to see you again (similarity=1.0000)
-
-ap0:face_app:I(440081):visitor 3 of 3 is coming up
-ap0:face_app:I(440081):let me look at you with SCRFD first...
-ap0:TFLM:I(440100):FaceRecognition: input normalize (BGRA -> RGB int8) took 8 ms
-ap0:TFLM:I(440100):
-ap0:TFLM:I(440112):U65 NPU | tensorflow-lite-micro detect invoke: 10 ms
-ap0:TFLM:I(440112):
-ap0:TFLM:I(440114):FaceDetect: post-process (decode + NMS) took 2 ms
-ap0:TFLM:I(440114):
-ap0:face_app:I(440114):SCRFD: face found at (115,69 33x48), confidence 83%, took 13 ms
-ap0:TFLM:I(440115):FaceRecognition: align (VG-Lite 5-point warp) took 0 ms
-ap0:TFLM:I(440115):
-ap0:TFLM:I(440117):FaceVerify: input prepare (copy + normalize) took 1 ms
-ap0:TFLM:I(440117):
-ap0:TFLM:I(440138):U65 NPU | tensorflow-lite-micro verify invoke: 20 ms
-ap0:TFLM:I(440138):
-ap0:TFLM:I(440139):FaceVerify: post-process (embedding copy) took 0 ms
-ap0:TFLM:I(440139):
-ap0:face_app:I(440139):ok, I can see you. now Arcface, let me tell who you are: verify took 23 ms
-ap0:face_app:I(440139):let me compare you against my 3 friends...
-ap0:face_app:I(440139):   vs Alice: similarity 0.1522
-ap0:face_app:I(440139):   vs Bob: similarity 0.0649
-ap0:face_app:I(440140):   vs Jason: similarity 1.0000
-ap0:face_app:I(440140):...done, comparing 3 faces took 0.44 ms
-ap0:face_app:I(440140):aha! you are Jason, nice to see you again (similarity=1.0000)
-
-ap0:face_app:I(440440):that is everybody for this round, let's play again
-ap0:face_app:I(440440):
-ap0:face_app:I(440440):---------------- round 73 done, next one in 5 seconds ----------------
-ap0:face_app:I(440440):
+ap0:face_app:I(19346):------------------------------------------------
+ap0:face_app:I(19346):hi! I am BK7259's face recognition robot
+ap0:face_app:I(19346):my SCRFD eyes spot faces, my Arcface brain tells who you are
+ap0:face_app:I(19346):round 4: knock knock, who is at the door?
+ap0:face_app:I(19346):visitor 1 of 3 is coming up
+ap0:face_app:I(19346):let me look at you with SCRFD first...
+ap0:TFLM:I(19365):FaceRecognition: input normalize (BGRA -> RGB int8) took 7 ms
+ap0:TFLM:I(19365):
+ap0:TFLM:I(19375):U65 NPU | tensorflow-lite-micro detect invoke: 9 ms
+ap0:TFLM:I(19375):
+ap0:TFLM:I(19377):FaceDetect: post-process (decode + NMS) took 2 ms
+ap0:TFLM:I(19378):
+ap0:face_app:I(19378):SCRFD: face found at (127,117 36x48), confidence 85%, took 11 ms
+ap0:TFLM:I(19379):FaceRecognition: align (VG-Lite 5-point warp) took 0 ms
+ap0:TFLM:I(19379):
+ap0:TFLM:I(19381):FaceVerify: input prepare (copy + normalize) took 1 ms
+ap0:TFLM:I(19381):
+ap0:TFLM:I(19391):U65 NPU | tensorflow-lite-micro verify invoke: 10 ms
+ap0:TFLM:I(19391):
+ap0:TFLM:I(19391):FaceVerify: post-process (embedding copy) took 0 ms
+ap0:TFLM:I(19392):
+ap0:face_app:I(19392):ok, I can see you. now Arcface, let me tell who you are: verify took 12 ms
+ap0:face_app:I(19392):let me compare you against my 3 friends...
+ap0:face_app:I(19392):   vs Alice: similarity 1.0000
+ap0:face_app:I(19392):   vs Bob: similarity 0.0821
+ap0:face_app:I(19392):   vs Jason: similarity 0.1522
+ap0:face_app:I(19392):...done, comparing 3 faces took 0.41 ms
+ap0:face_app:I(19392):aha! you are Alice, nice to see you again (similarity=1.0000)
+ap0:face_app:I(19693):visitor 2 of 3 is coming up
+ap0:face_app:I(19693):let me look at you with SCRFD first...
+ap0:TFLM:I(19712):FaceRecognition: input normalize (BGRA -> RGB int8) took 7 ms
+ap0:TFLM:I(19712):
+ap0:TFLM:I(19722):U65 NPU | tensorflow-lite-micro detect invoke: 9 ms
+ap0:TFLM:I(19722):
+ap0:TFLM:I(19724):FaceDetect: post-process (decode + NMS) took 2 ms
+ap0:TFLM:I(19724):
+ap0:face_app:I(19724):SCRFD: face found at (74,50 55x78), confidence 85%, took 11 ms
+ap0:TFLM:I(19725):FaceRecognition: align (VG-Lite 5-point warp) took 0 ms
+ap0:TFLM:I(19725):
+ap0:TFLM:I(19727):FaceVerify: input prepare (copy + normalize) took 1 ms
+ap0:TFLM:I(19727):
+ap0:TFLM:I(19738):U65 NPU | tensorflow-lite-micro verify invoke: 10 ms
+ap0:TFLM:I(19738):
+ap0:TFLM:I(19738):FaceVerify: post-process (embedding copy) took 0 ms
+ap0:TFLM:I(19738):
+ap0:face_app:I(19739):ok, I can see you. now Arcface, let me tell who you are: verify took 12 ms
+ap0:face_app:I(19739):let me compare you against my 3 friends...
+ap0:face_app:I(19739):   vs Alice: similarity 0.0821
+ap0:face_app:I(19739):   vs Bob: similarity 1.0000
+ap0:face_app:I(19739):   vs Jason: similarity 0.0649
+ap0:face_app:I(19739):...done, comparing 3 faces took 0.44 ms
+ap0:face_app:I(19739):aha! you are Bob, nice to see you again (similarity=1.0000)
+ap0:face_app:I(20039):visitor 3 of 3 is coming up
+ap0:face_app:I(20039):let me look at you with SCRFD first...
+cp0:cal:I(20191):temp_code:34.00->35.00 - adc_code:6408 - adc_trend:[14->15]
+ap0:TFLM:I(20058):FaceRecognition: input normalize (BGRA -> RGB int8) took 7 ms
+ap0:TFLM:I(20058):
+ap0:TFLM:I(20068):U65 NPU | tensorflow-lite-micro detect invoke: 9 ms
+ap0:TFLM:I(20068):
+ap0:TFLM:I(20070):FaceDetect: post-process (decode + NMS) took 2 ms
+ap0:TFLM:I(20071):
+ap0:face_app:I(20071):SCRFD: face found at (115,69 33x48), confidence 83%, took 12 ms
+ap0:TFLM:I(20072):FaceRecognition: align (VG-Lite 5-point warp) took 0 ms
+ap0:TFLM:I(20072):
+ap0:TFLM:I(20074):FaceVerify: input prepare (copy + normalize) took 1 ms
+ap0:TFLM:I(20074):
+ap0:TFLM:I(20084):U65 NPU | tensorflow-lite-micro verify invoke: 10 ms
+ap0:TFLM:I(20084):
+ap0:TFLM:I(20085):FaceVerify: post-process (embedding copy) took 0 ms
+ap0:TFLM:I(20085):
+ap0:face_app:I(20085):ok, I can see you. now Arcface, let me tell who you are: verify took 12 ms
+ap0:face_app:I(20085):let me compare you against my 3 friends...
+ap0:face_app:I(20085):   vs Alice: similarity 0.1522
+ap0:face_app:I(20085):   vs Bob: similarity 0.0649
+ap0:face_app:I(20085):   vs Jason: similarity 1.0000
+ap0:face_app:I(20085):...done, comparing 3 faces took 0.41 ms
+ap0:face_app:I(20086):aha! you are Jason, nice to see you again (similarity=1.0000)
+ap0:face_app:I(20386):that is everybody for this round, let's play again
+ap0:face_app:I(20386):
+ap0:face_app:I(20386):---------------- round 4 done, next one in 5 seconds ----------------
 ```
 
 日志要点：
@@ -177,7 +173,7 @@ ap0:face_app:I(440440):
 
 | 路径 | 说明 |
 | --- | --- |
-| `ap/ap_main.cc` | 演示流程、SD 卡挂载、GPU 上电、日志输出 |
+| `ap/ap_main.cc` | 演示流程、GPU 上电、日志输出 |
 | `ap/resource/face3_image_input.cc` 等 | 编译进固件的 3 张 320×320 BGRA 图像 |
 | `components/avdk_nn_module` | `tflm_face_recog` 组件：检测/特征模型封装与对齐 |
 | `components/multimedia_device_service/src/app_gpu.c` | VG-Lite 上电与 GPU 锁 |
