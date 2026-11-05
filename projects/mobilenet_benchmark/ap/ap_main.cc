@@ -111,7 +111,7 @@ static void model_print_round_report(int round)
     LOGI("================ ROUND %d TEST REPORT ================\r\n", round);
     LOGI("[System]\r\n");
     LOGI("  chip        : BK7259 (Cortex-M55 + Ethos-U65)\r\n");
-    LOGI("  firmware    : face_recognition_meminfo  built %s %s\r\n", __DATE__, __TIME__);
+    LOGI("  firmware    : mobilenet_benchmark  built %s %s\r\n", __DATE__, __TIME__);
     LOGI("  round       : %d\r\n", round);
 
     LOGI("[Models]\r\n");

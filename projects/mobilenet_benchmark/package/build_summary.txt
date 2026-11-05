@@ -27,7 +27,7 @@ PSRAM_HEAP            0x64e00000 0x00020000       0 B  0.00%
 >>>>>>>>>> AP
 name                     addr       size        used   usage
 ------------------------------------------------------------
-FLASH                 0x041b8000 0x0040d000 3844412 B 90.51%
+FLASH                 0x041b8000 0x0040d000 3844396 B 90.51%
 IRAM                  0x2c180000 0x00060000    1952 B  0.50%
 RAM                   0x2c180000 0x00060000   51964 B 13.22%
 SWAP                  0x2c05f000 0x00001000    4096 B100.00%
@@ -37,5 +37,5 @@ PSRAM_CODE_SECTION    0x64f00000 0x00100000       0 B  0.00%
 PSRAM_DATA_SECTION    0x64ec0000 0x00040000       0 B  0.00%
 <<<<<<<<<< AP
 ======================= Output Info ========================
-firmware: /home/senan.liu/workspace/solution/bk_solution_edge_ai_release_4.0.1/projects/face_recognition_meminfo/build/bk7259/face_recognition_meminfo/package/all-app.bin
-ota binary: /home/senan.liu/workspace/solution/bk_solution_edge_ai_release_4.0.1/projects/face_recognition_meminfo/build/bk7259/face_recognition_meminfo/package/app_pack.rbl
+firmware: /home/senan.liu/workspace/solution/bk_solution_edge_ai_release_4.0.1/projects/mobilenet_benchmark/build/bk7259/mobilenet_benchmark/package/all-app.bin
+ota binary: /home/senan.liu/workspace/solution/bk_solution_edge_ai_release_4.0.1/projects/mobilenet_benchmark/build/bk7259/mobilenet_benchmark/package/app_pack.rbl

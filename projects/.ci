@@ -1,4 +1,4 @@
 cd face_recognition;./dbuild.sh make bk7259
 cd dashboard;./dbuild.sh make bk7259
 cd camera_display;./dbuild.sh make bk7259
-cd face_recognition_meminfo;./dbuild.sh make bk7259
+cd mobilenet_benchmark;./dbuild.sh make bk7259
