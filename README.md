@@ -4,7 +4,7 @@
 
 ## Overview
 
-**BK7259 Edge AI Solution** is an open-source turnkey on-device AI solution released by Beken. Built on the **BK7259** main control chip with its embedded NPU and the Armino base SDK **BK_AVDK_SMP**, it adopts a BK7259 + BK3515N dual-chip architecture. At its core is offline face detection and recognition (SCRFD detection + Arcface matching, running on the NPU with TFLM), complemented by a smart dashboard reference implementation that covers MIPI DSI + DPU + LVGL display, boot AVI playback, full-screen camera preview, Dashcam loop recording and playback, local music playback, Bluetooth phone calls, BLE / Wi-Fi provisioning, phone casting, SD card storage and MTP export, along with complete example projects.
+**BK7259 Edge AI Solution** is an open-source turnkey on-device AI solution released by Beken. Built on the **BK7259** main control chip with its embedded NPU and the Armino base SDK **BK_AVDK_SMP**, it adopts a BK7259 + BK3515N dual-chip architecture. At its core is offline face detection and recognition (SCRFD detection + GhostFaceNets matching, running on the NPU with TFLM; both models are built into the firmware, so no SD card is required), together with the `mobilenet_benchmark` project (a MobileNetV1 inference benchmark that feeds 224×224×3 all-zero input, measures the NPU `Invoke()` time and prints a memory/timing report), complemented by a smart dashboard reference implementation that covers MIPI DSI + DPU + LVGL display, boot AVI playback, full-screen camera preview, Dashcam loop recording and playback, local music playback, Bluetooth phone calls, BLE / Wi-Fi provisioning, phone casting, SD card storage and MTP export, along with complete example projects.
 
 ## Documentation
 
@@ -133,6 +133,7 @@ The following reference projects are listed; click a name for details.<!-- readm
 - [camera_display](/projects/camera_display/)
 - [dashboard](/projects/dashboard/)
 - [face_recognition](/projects/face_recognition/)
+- [mobilenet_benchmark](/projects/mobilenet_benchmark/)
 <!-- readme-projects:end -->
 ## Beken Resources
 
