@@ -4,7 +4,7 @@
 
 ## 概述
 
-**BK7259 边缘 AI 解决方案**是 BEKEN 发布并开源的端侧 AI 整机方案。该方案基于 **BK7259** 主控芯片及其内置 NPU，依赖 Armino 基础 SDK **BK_AVDK_SMP**，采用 BK7259 与 BK3515N 双芯片架构。方案核心为离线人脸检测与识别（SCRFD 检测 + Arcface 比对，基于 TFLM 在 NPU 上运行），并提供智能仪表参考实现，涵盖 MIPI DSI + DPU + LVGL 显示、开机 AVI 播放、全屏摄像头预览、行车记录仪循环录像与回放、本地音乐播放、蓝牙电话、BLE / Wi-Fi 配网、手机投屏、SD 卡存储与 MTP 导出等能力，并提供完整的示例工程。
+**BK7259 边缘 AI 解决方案**是 BEKEN 发布并开源的端侧 AI 整机方案。该方案基于 **BK7259** 主控芯片及其内置 NPU，依赖 Armino 基础 SDK **BK_AVDK_SMP**，采用 BK7259 与 BK3515N 双芯片架构。方案核心为离线人脸检测与识别（SCRFD 检测 + GhostFaceNets 比对，基于 TFLM 在 NPU 上运行，两个模型均编译进固件，无需 SD 卡），同时提供 MobileNetV1 推理基准工程 `mobilenet_benchmark`（224×224×3 全零输入，测量 NPU `Invoke()` 耗时并打印内存与耗时报告），以及智能仪表参考实现，涵盖 MIPI DSI + DPU + LVGL 显示、开机 AVI 播放、全屏摄像头预览、行车记录仪循环录像与回放、本地音乐播放、蓝牙电话、BLE / Wi-Fi 配网、手机投屏、SD 卡存储与 MTP 导出等能力，并提供完整的示例工程。
 
 ## 文档
 
@@ -133,6 +133,7 @@ projects/face_recognition/build/bk7259/face_recognition/package/all-app.bin
 - [camera_display](/projects/camera_display/)
 - [dashboard](/projects/dashboard/)
 - [face_recognition](/projects/face_recognition/)
+- [mobilenet_benchmark](/projects/mobilenet_benchmark/)
 <!-- readme-projects:end -->
 ## BEKEN 相关资源
 
