@@ -82,7 +82,7 @@ The serial console prints the whole pipeline and its timings. Below is the actua
 ```
 ap0:face_app:I(19346):------------------------------------------------
 ap0:face_app:I(19346):hi! I am BK7259's face recognition robot
-ap0:face_app:I(19346):my SCRFD eyes spot faces, my Arcface brain tells who you are
+ap0:face_app:I(19346):my SCRFD eyes spot faces, my GhostFaceNets brain tells who you are
 ap0:face_app:I(19346):round 4: knock knock, who is at the door?
 ap0:face_app:I(19346):visitor 1 of 3 is coming up
 ap0:face_app:I(19346):let me look at you with SCRFD first...
@@ -101,7 +101,7 @@ ap0:TFLM:I(19391):U65 NPU | tensorflow-lite-micro verify invoke: 10 ms
 ap0:TFLM:I(19391):
 ap0:TFLM:I(19391):FaceVerify: post-process (embedding copy) took 0 ms
 ap0:TFLM:I(19392):
-ap0:face_app:I(19392):ok, I can see you. now Arcface, let me tell who you are: verify took 12 ms
+ap0:face_app:I(19392):ok, I can see you. now GhostFaceNets, let me tell who you are: verify took 12 ms
 ap0:face_app:I(19392):let me compare you against my 3 friends...
 ap0:face_app:I(19392):   vs Alice: similarity 1.0000
 ap0:face_app:I(19392):   vs Bob: similarity 0.0821
@@ -125,7 +125,7 @@ ap0:TFLM:I(19738):U65 NPU | tensorflow-lite-micro verify invoke: 10 ms
 ap0:TFLM:I(19738):
 ap0:TFLM:I(19738):FaceVerify: post-process (embedding copy) took 0 ms
 ap0:TFLM:I(19738):
-ap0:face_app:I(19739):ok, I can see you. now Arcface, let me tell who you are: verify took 12 ms
+ap0:face_app:I(19739):ok, I can see you. now GhostFaceNets, let me tell who you are: verify took 12 ms
 ap0:face_app:I(19739):let me compare you against my 3 friends...
 ap0:face_app:I(19739):   vs Alice: similarity 0.0821
 ap0:face_app:I(19739):   vs Bob: similarity 1.0000
@@ -150,7 +150,7 @@ ap0:TFLM:I(20084):U65 NPU | tensorflow-lite-micro verify invoke: 10 ms
 ap0:TFLM:I(20084):
 ap0:TFLM:I(20085):FaceVerify: post-process (embedding copy) took 0 ms
 ap0:TFLM:I(20085):
-ap0:face_app:I(20085):ok, I can see you. now Arcface, let me tell who you are: verify took 12 ms
+ap0:face_app:I(20085):ok, I can see you. now GhostFaceNets, let me tell who you are: verify took 12 ms
 ap0:face_app:I(20085):let me compare you against my 3 friends...
 ap0:face_app:I(20085):   vs Alice: similarity 0.1522
 ap0:face_app:I(20085):   vs Bob: similarity 0.0649

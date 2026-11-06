@@ -88,7 +88,7 @@ static FaceRecognitionModel *s_model = NULL;
 static void face_say_hello(void)
 {
     LOGI("hi! I am BK7259's face recognition robot\r\n");
-    LOGI("my SCRFD eyes spot faces, my Arcface brain tells who you are\r\n");
+    LOGI("my SCRFD eyes spot faces, my GhostFaceNets brain tells who you are\r\n");
 }
 
 /* Fires from inside run(), right after the detection stage, so the detect
@@ -282,7 +282,7 @@ static void face_task(void *arg)
                 continue;
             }
 
-            LOGI("ok, I can see you. now Arcface, let me tell who you are: verify took %llu ms\r\n",
+            LOGI("ok, I can see you. now GhostFaceNets, let me tell who you are: verify took %llu ms\r\n",
                  s_model->getLastVerifyUs() / 1000ULL);
             LOGI("let me compare you against my %d friends...\r\n", known_count);
 
